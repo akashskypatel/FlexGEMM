@@ -4,6 +4,7 @@ import os
 import platform
 import torch
 import shutil
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 BUILD_TARGET = os.environ.get("BUILD_TARGET", "auto")
@@ -27,15 +28,57 @@ else:
 
 if platform.system() == "Windows":
     extra_compile_args = {
-        "cxx": ["/O2", "/std:c++17", "/EHsc", "/openmp", "/permissive-", "/Zc:__cplusplus"],
-        "nvcc": ["-O3", "-std=c++17", "-Xcompiler=/std:c++17", "-Xcompiler=/EHsc", "-Xcompiler=/permissive-", "-Xcompiler=/Zc:__cplusplus"] + cc_flag,
+        "cxx": [
+            "/O2",
+            "/std:c++17",
+            "/EHsc",
+            "/openmp",
+            "/permissive-",
+            "/Zc:__cplusplus",
+            "/Zc:preprocessor",
+        ],
+        "nvcc": [
+            "-O3",
+            "-std=c++17",
+            "-Xcompiler=/std:c++17",
+            "-Xcompiler=/EHsc",
+            "-Xcompiler=/permissive-",
+            "-Xcompiler=/Zc:__cplusplus",
+            "--expt-relaxed-constexpr",
+            "--extended-lambda",
+            "-Xcompiler=/Zc:preprocessor",
+            "-allow-unsupported-compiler",
+        ]
+        + cc_flag,
     }
 else:
     # Match PyTorch's CXX11 ABI setting
     cxx11_abi = "1" if torch.compiled_with_cxx11_abi() else "0"
     extra_compile_args = {
-        "cxx": ["-O3", "-std=c++17", "-fopenmp", f"-D_GLIBCXX_USE_CXX11_ABI={cxx11_abi}"],
-        "nvcc": ["-O3", "-std=c++17"] + cc_flag,
+        "cxx": [
+            "-O3",
+            "-std=c++17",
+            "-fopenmp",
+            "/std:c++17",
+            "/EHsc",
+            "/permissive-",
+            "/Zc:__cplusplus",
+            "/Zc:preprocessor",
+            f"-D_GLIBCXX_USE_CXX11_ABI={cxx11_abi}",
+        ],
+        "nvcc": [
+            "-O3",
+            "-std=c++17",
+            "--expt-relaxed-constexpr",
+            "--extended-lambda",
+            "-Xcompiler=/std:c++17",
+            "-Xcompiler=/EHsc",
+            "-Xcompiler=/permissive-",
+            "-Xcompiler=/Zc:__cplusplus",
+            "-Xcompiler=/Zc:preprocessor",
+            "-allow-unsupported-compiler",
+        ]
+        + cc_flag,
     }
 
 setup(
@@ -68,20 +111,19 @@ setup(
                 # main
                 "flex_gemm/kernels/cuda/ext.cpp",
             ],
-            extra_compile_args=extra_compile_args
+            extra_compile_args=extra_compile_args,
         )
     ],
-    cmdclass={
-        'build_ext': BuildExtension
-    },
+    cmdclass={"build_ext": BuildExtension},
     install_requires=[
-        'torch',
-    ]
+        "torch",
+    ],
 )
 
 # Install autotune cache. If an existing cache is present, merge entries
 # from the package's cache on top of it (package values override existing).
 import json
+
 
 def _deep_merge(base, override):
     """Recursively merge ``override`` into ``base``; ``override`` wins on leaves."""
@@ -91,6 +133,7 @@ def _deep_merge(base, override):
             merged[k] = _deep_merge(base.get(k), v) if k in base else v
         return merged
     return override
+
 
 os.makedirs(os.path.expanduser("~/.flex_gemm"), exist_ok=True)
 src_cache_path = os.path.join(ROOT, "autotune_cache.json")
@@ -111,4 +154,3 @@ else:
 
 with open(dst_cache_path, "w") as f:
     json.dump(merged_cache, f, indent=4)
-
